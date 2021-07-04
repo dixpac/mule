@@ -24,20 +24,25 @@ module Mule
     def run
       loop do
         @client = @control_socket.accept
-        respond "220 OHAI"
 
-        handler = Command.new(self)
+        pid = fork do
+          respond "220 OHAI"
 
-        loop do
-          request = gets
+          handler = Command.new(self)
 
-          if request
-            respond handler.execute(request)
-          else
-            @client.close
-            break
+          loop do
+            request = gets
+
+            if request
+              respond handler.execute(request)
+            else
+              @client.close
+              break
+            end
           end
         end
+
+        Process.detach(pid)
       end
     end
   end
