@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "socket"
+require_relative "./command"
 
 module Mule
   class Server
@@ -24,6 +25,19 @@ module Mule
       loop do
         @client = @control_socket.accept
         respond "220 OHAI"
+
+        handler = Command.new(self)
+
+        loop do
+          request = gets
+
+          if request
+            respond handler.execute(request)
+          else
+            @client.close
+            break
+          end
+        end
       end
     end
   end
