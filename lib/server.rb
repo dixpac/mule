@@ -7,8 +7,11 @@ module Mule
   class Server
     CRLF = "\r\n"
 
-    def initialize(port = 21)
+    attr_reader :workers
+
+    def initialize(port = 21, workers = 4)
       @control_socket = TCPServer.new(port)
+      @workers = workers
       trap(:INT) { exit }
     end
 
@@ -22,10 +25,33 @@ module Mule
     end
 
     def run
-      loop do
-        @client = @control_socket.accept
+      child_pids = []
+      workers.times { child_pids << spawn_child }
 
-        pid = fork do
+      trap(:INT) do
+        child_pids.each do |cpid|
+          begin
+            Process.kill(:INT, cpid)
+          rescue Errno::ESRCH
+          end
+        end
+
+        exit
+      end
+
+      loop do
+        pid = Process.wait
+        $stderr.puts "Process #{pid} quit unexpectedly"
+
+        child_pids.delete(pid)
+        child_pids << spawn_child
+      end
+    end
+
+    private
+      def spawn_child
+        fork do
+          @client = @control_socket.accept
           respond "220 OHAI"
 
           handler = Command.new(self)
@@ -41,10 +67,7 @@ module Mule
             end
           end
         end
-
-        Process.detach(pid)
       end
-    end
   end
 end
 
